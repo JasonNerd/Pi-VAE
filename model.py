@@ -9,9 +9,6 @@ def slice_func(x, start, size):
 def perm_func(x, ind):
     return x.index_select(-1, torch.as_tensor(ind, device=x.device))
 
-def squeeze_func(x):
-    return x.squeeze(1)
-
 def softplus_func(x):
     return F.softplus(x)
 
@@ -31,9 +28,7 @@ def clamp_func(x):
     return 0.1 * torch.tanh(x)
 
 def sampling(z_mean, z_log_var):
-    batch = z_mean.size(0)
-    dim = z_mean.size(1)
-    epsilon = torch.randn(batch, dim, device=z_mean.device)
+    epsilon = torch.randn((z_mean.shape), device=z_mean.device)
     return z_mean + torch.exp(0.5 * z_log_var) * epsilon
 
 def compute_posterior(z_mean, z_log_var, lam_mean, lam_log_var):
@@ -204,8 +199,8 @@ class ZPriorDisc(nn.Module):
         self.embedding = nn.Embedding(num_u, dim_z)
     
     def forward(self, u_input):
-        lam_mean = squeeze_func(self.embedding(u_input).squeeze(1))
-        lam_log_var = squeeze_func(self.embedding(u_input).squeeze(1))
+        lam_mean = self.embedding(u_input)
+        lam_log_var = self.embedding(u_input)
         return lam_mean, lam_log_var
 
 class VAE(nn.Module):
@@ -229,12 +224,13 @@ class VAE(nn.Module):
     
     def forward(self, x_input, u_input):
         lam_mean, lam_log_var = self.z_prior(u_input)
+        lam_mean, lam_log_var = lam_mean.squeeze(), lam_log_var.squeeze()
+    
         z_mean = self.encoder(x_input)
         z_log_var = self.encoder(x_input)
         post_mean, post_log_var = compute_posterior(z_mean, z_log_var, lam_mean, lam_log_var)
         z_sample = sampling(post_mean, post_log_var)
         fire_rate = self.decoder(z_sample)
-        
         if self.mdl == 'gaussian':
             one_tensor = torch.ones((1, 1), device=x_input.device)
             obs_log_var = self.obs(one_tensor)
@@ -266,4 +262,20 @@ class VAE(nn.Module):
         loss = self.loss_function(x_input, vae_outputs)
         loss.backward()
         self.optimizer.step()
-        return loss.item()
+        return loss.item(), vae_outputs[3]
+
+
+"""
+(batch_size, time_bins, num_neurons)
+x_in.shape=torch.Size([16, 180, 182])
+u_in.shape=torch.Size([16, 180, 1])
+lam_mean.shape=torch.Size([16, 180, 45])
+lam_log_var.shape=torch.Size([16, 180, 45])
+z_mean.shape=torch.Size([16, 180, 45])
+z_log_var.shape=torch.Size([16, 180, 45])
+post_mean.shape=torch.Size([16, 180, 45])
+post_log_var.shape=torch.Size([16, 180, 45])
+
+"""
+
+
