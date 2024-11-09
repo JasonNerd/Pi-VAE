@@ -3,4 +3,6 @@
 reference code and data can be found at repo: 
 https://github.com/zhd96/pi-vae
 
-
+PIVAE
+pivae
+vae
